@@ -3,7 +3,16 @@
 #include <string.h>
 #define TAILLE_MAX 100
 
+void enleverEspaces(FILE* f){
+    char c = fgetc(f) ;
+    while (c == 9 || c == ' '){
+        c = fgetc(f) ;
+    }
+    fseek(f, -1, SEEK_CUR) ;
+}
+
 int verifierDoctype(FILE* f){
+    enleverEspaces(f);
     char* buffer = malloc(sizeof(char)*TAILLE_MAX);
     fgets(buffer, 11, f);
     if (strcmp("<!DOCTYPE ",buffer)==0){
@@ -11,7 +20,6 @@ int verifierDoctype(FILE* f){
         free(buffer);
         return 0 ;
     } else {
-        printf("%s", buffer);
         free(buffer);
         printf("DOCTYPE INCORRECT\n");
         return 1 ;
@@ -75,13 +83,7 @@ int finDeDTD(FILE* f){
     }
 }
 
-void enleverEspaces(FILE* f){
-    char c = fgetc(f) ;
-    while (c == 9 || c == ' '){
-        c = fgetc(f) ;
-    }
-    fseek(f, -1, SEEK_CUR) ;
-}
+
 
 int detectionElement (FILE* f){
     char* buffer = malloc(sizeof(char)*TAILLE_MAX);
@@ -103,6 +105,10 @@ void getNameElement(int i, char** tabNameElement, FILE* f){
     int j = 0 ;
     char c = fgetc(f);
     char* buffer = malloc(sizeof(char)*TAILLE_MAX);
+    if (c == ' '){
+        printf("ERREUR : TROP D'ESPACES AVANT LE NOM DE L'ELEMENT");
+        exit(1);
+    }
     while (c != ' '){
         buffer[j] = c ;
         //printf("|%c|",c );
@@ -110,7 +116,7 @@ void getNameElement(int i, char** tabNameElement, FILE* f){
         j++ ;
     }
     tabNameElement[i] = buffer ;
-    printf("L'élément est : %s \n", tabNameElement[i]);
+    printf("L'élément (%d) est : %s \n", i, tabNameElement[i]);
 
 }
 
@@ -119,12 +125,16 @@ void getAttributElement (int i, char** tabAttributElement, FILE* f){
     int j = 0 ;
     char c = fgetc(f);
     while (c != ')'){
+        if (c == ' '){
+            printf("ERREUR DE SYNTAXE DANS L'ATTRIBUT DE L'ELEMENT");
+            exit(1);
+        }
         buffer[j] = c ;
         c = fgetc(f);
         j++ ;
     }
     tabAttributElement[i] = buffer ;
-    printf("L'attribut associé est : %s \n", tabAttributElement[i] );
+    printf("L'attribut associé est : %s \n\n", tabAttributElement[i] );
 
 }
 
@@ -150,7 +160,7 @@ void getElement(int i, char** tabNameElement, char** tabAttributElement, FILE* f
                 exit(1);
             }
         } else {
-            printf("ERREUR DE SYNTAXE DE L'ATTRIBUT DE L'ELEMENT");
+            printf("ERREUR DE SYNTAXE DANS L'ELEMENT");
             exit(1);
         }
 
@@ -171,7 +181,7 @@ int main()
         exit(1);
     }
     char* nomDTD = getNomDTD(dtd);
-    printf("Nom de la DTD : %s\n",nomDTD);
+    printf("Nom de la DTD : %s\n\n",nomDTD);
 
     sauterLigne(dtd);
 
@@ -183,14 +193,6 @@ int main()
         getElement(i, tabNameElement, tabAttributElement, dtd) ;
         i++ ;
     }
-
-
-
-    // lireElement
-    // mettre en place une sécuritée au cas
-    // ou le caractere souhaité n'est
-    // pas présent dans les while (c ==
-
 
     fclose (dtd);
     return 0 ;
