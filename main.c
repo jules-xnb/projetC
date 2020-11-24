@@ -150,11 +150,10 @@ void getAttributElement (int i, char** tabAttributElement, FILE* f){
 int checkParenthese(FILE* f){
     char c = fgetc(f);
     if (c == '('){
-            return 1 ;
-        } else {
-            return 0 ;
-        }
-
+        return 1 ;
+    } else {
+        return 0 ;
+    }
 }
 
 void getElement(int i, char** tabNameElement, char** tabAttributElement, FILE* f){
@@ -208,7 +207,7 @@ int checkXMLVersion(FILE* f){
     char* buffer = malloc(sizeof(char)*TAILLE_MAX);
     fgets(buffer, 22, f);
     if (strcmp("<?xml version=\"1.0\"?>", buffer) == 0){
-        printf("XML VERSION CORRECT\n");
+        printf("XML VERSION CORRECT\n\n");
         free(buffer);
         return 1 ;
     } else {
@@ -219,11 +218,17 @@ int checkXMLVersion(FILE* f){
 
 }
 
-void checkElementInDTD(int nbElementDTD, char** tabNameElement, char* buffer ){
+int checkElementInDTD(int nbElementDTD, char** tabNameElement, char* buffer, int n){
+    //printf("   %s", buffer);
     int indexSave = -1 ;
     for(int j = 0 ; j < nbElementDTD ; j++){
         if (strcmp(buffer, tabNameElement[j]) == 0){
-            printf("DETECTION DE L'ELEMENT %s", tabNameElement[j]);
+            if (n == 0){
+                printf("DETECTION DE L'ELEMENT %s\n", tabNameElement[j]);
+            } else {
+                printf("FIN DE L'ELEMENT %s\n\n", tabNameElement[j]);
+            }
+
             indexSave = j ;
             break ;
         }
@@ -232,9 +237,10 @@ void checkElementInDTD(int nbElementDTD, char** tabNameElement, char* buffer ){
         printf("ERREUR : ELEMENT NON PRESENT DANS LA DTD\n");
         exit(1);
     }
+    return indexSave ;
 }
 
-char* getElementXML(FILE* xml){
+char* lectureFinElementDTD(FILE* xml){
     char* buffer = malloc(sizeof(char)*TAILLE_MAX);
     char c = fgetc(xml);
     int i = 0 ;
@@ -242,11 +248,16 @@ char* getElementXML(FILE* xml){
         buffer[i] = c ;
         c = fgetc(xml);
         if (i == TAILLE_MAX){
-            printf("ERREUR : '>' NON PRESENT OU NOM D'ELEMENT TROP GRAND");
+            printf("ERREUR : '>' NON PRESENT OU NOM D'ELEMENT TROP GRAND\n");
             exit(1);
         }
         i++;
     }
+    return buffer ;
+}
+
+char* getElementXML(FILE* xml){
+    char* buffer = lectureFinElementDTD(xml);
     if (strcmp(buffer, "")==0){
         printf("ERREUR DANS DECLARATION D'ELEMENT\n");
         exit(1);
@@ -254,13 +265,74 @@ char* getElementXML(FILE* xml){
     return buffer ;
 }
 
-void lireElementDansXML(FILE* xml, int nbElementDTD, char** tabNameElement){
-    if (fgetc(xml) == '<'){
-        char* nomElement = getElementXML(xml);
-        checkElementInDTD(nbElementDTD, tabNameElement, nomElement);
+int checkFinElementDTD(int indexElement, char** tabAttributElement){
+    if( tabAttributElement[indexElement][strlen(tabAttributElement[indexElement])-1] == '+') {
+        return 1 ;
     } else {
-        exit(1);
-     }
+        return 0 ;
+    }
+}
+
+int checkFinElementXML(FILE* xml, int nbElementDTD, char** tabNameElement){
+    char c = fgetc(xml);
+    if (c == '/'){
+        char* buffer = lectureFinElementDTD(xml);
+        checkElementInDTD(nbElementDTD,tabNameElement, buffer, 1);
+        free(buffer);
+        return 1 ;
+    } else {
+        fseek(xml, -1, SEEK_CUR);
+        return 0 ;
+    }
+}
+
+void lireContenuElementXML(FILE* xml){
+    char* buffer = malloc(sizeof(char)*TAILLE_MAX);
+    char c = fgetc(xml);
+    int i = 0 ;
+    while (c != '<'){
+        buffer[i] = c ;
+        c = fgetc(xml);
+        if (i == TAILLE_MAX){
+            printf("ERREUR : '<' NON PRESENT OU NOM D'ELEMENT TROP GRAND\n");
+            exit(1);
+        }
+        i++;
+    }
+    buffer[i]='\0' ;
+    printf("L'ELEMENT CONTIENT %s\n", buffer);
+    free(buffer);
+}
+
+void lireElementDansXML(FILE* xml, int nbElementDTD, char** tabNameElement, char** tabAttributElement, int profondeur){
+    sauterLigne(xml);
+    enleverEspaces(xml);
+    if (fgetc(xml) == '<'){
+        if (checkFinElementXML(xml, nbElementDTD, tabNameElement) == 1 && profondeur == 0){
+            return ;
+        }
+        char* nomElement = getElementXML(xml);
+
+        int indexElement = checkElementInDTD(nbElementDTD, tabNameElement, nomElement, 0);
+
+        if(strcmp(tabAttributElement[indexElement], "#PCDATA" ) == 0){
+            lireContenuElementXML(xml);
+            if (checkFinElementXML(xml, nbElementDTD, tabNameElement)==1){
+                //printf("FIN D'ELEMENT\n");
+                lireElementDansXML(xml, nbElementDTD,tabNameElement, tabAttributElement, profondeur--);
+            } else {
+                printf("ERREUR DE FIN D'ELEMENT\n");
+                exit(1);
+            }
+
+        } else {
+            int n = checkFinElementDTD(indexElement, tabAttributElement);
+            if (n == 1){
+                free(nomElement);
+                lireElementDansXML(xml, nbElementDTD,tabNameElement, tabAttributElement, profondeur++);
+            }
+        }
+    }
 }
 
 
@@ -271,12 +343,8 @@ void lireXML(char* nomFichierXML, char** tabNameElement,
         exit(1);
     }
     if (checkXMLVersion(xml) == 1){
-        sauterLigne(xml);
-        enleverEspaces(xml);
-        lireElementDansXML(xml, nbElementDTD, tabNameElement);
-
-
-        }
+        lireElementDansXML(xml, nbElementDTD, tabNameElement, tabAttributElement, 0);
+    }
 }
 
 int main()
@@ -292,9 +360,6 @@ int main()
     char* nomFichierXML = "fichierxml.xml" ;
 
     lireXML(nomFichierXML, tabNameElement, tabAttributElement, nbElementDTD);
-
-
-
 
     return 0 ;
 }
