@@ -3,4 +3,4 @@ project(projet_c C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_executable(projet_c main.c functions/verifyDtd.c)
+add_executable(projet_c main.c functions/verifyDtd.c functions/xmlFunctions.c)
